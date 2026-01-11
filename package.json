@@ -3,20 +3,20 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
+    "build": "cd frontend && rm -rf node_modules package-lock.json && npm install --legacy-peer-deps && npm run build && cd .. && npm install --prefix backend",
     "start": "npm run start --prefix backend"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chanhduy633/todoX.git"
+    "url": "git+https://github.com/khangha1908/TodoX.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/chanhduy633/todoX/issues"
+    "url": "https://github.com/khangha1908/TodoX/issues"
   },
-  "homepage": "https://github.com/chanhduy633/todoX#readme",
+  "homepage": "https://github.com/khangha1908/TodoX#readme",
   "description": "",
   "dependencies": {
     "@radix-ui/react-label": "^2.1.8",

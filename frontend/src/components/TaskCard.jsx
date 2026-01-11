@@ -1,21 +1,48 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { Card } from "./ui/card";
+import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Checkbox } from "./ui/checkbox";
+import CategorySelector from "./CategorySelector";
 import {
   Calendar,
   CheckCircle2,
   Circle,
   SquarePen,
   Trash2,
+  AlertTriangle,
+  Clock,
+  FileText,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { toast } from "sonner";
-import { Input } from "./ui/input";
 
-const TaskCard = ({ task, index, handleTaskChanged }) => {
+const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }) => {
   const [isEditting, setIsEditting] = useState(false);
   const [updatedTaskTitle, setUpdateTaskTitle] = useState(task.title || "");
+  const [updatedCategory, setUpdatedCategory] = useState(task.category?._id || "none");
+  const [updatedPriority, setUpdatedPriority] = useState(task.priority || "medium");
+  const [updatedDueDate, setUpdatedDueDate] = useState(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
+  const [updatedDescription, setUpdatedDescription] = useState(task.description || "");
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get("/categories");
+      setCategories(res.data);
+    } catch (error) {
+      console.error("Lỗi khi lấy categories:", error);
+    }
+  };
 
   const deleteTask = async (taskId) => {
     try {
@@ -33,6 +60,10 @@ const TaskCard = ({ task, index, handleTaskChanged }) => {
       setIsEditting(false);
       await api.put(`/tasks/${task._id}`, {
         title: updatedTaskTitle,
+        category: updatedCategory || null,
+        priority: updatedPriority,
+        dueDate: updatedDueDate ? new Date(updatedDueDate).toISOString() : null,
+        description: updatedDescription,
       });
       toast.success("Cập nhật task thành công");
       handleTaskChanged();
@@ -64,6 +95,11 @@ const TaskCard = ({ task, index, handleTaskChanged }) => {
     }
   };
 
+  const handleCategoryChange = (value) => {
+    setUpdatedCategory(value);
+    fetchCategories(); // Refresh categories when a new one is created
+  };
+
   const handleKeyPress = (event) => {
     if (event.key === "Enter") {
       updateTask();
@@ -78,6 +114,12 @@ const TaskCard = ({ task, index, handleTaskChanged }) => {
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="flex items-center gap-4">
+        {/* Checkbox for bulk selection */}
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={onSelectChange}
+          className="flex-shrink-0"
+        />
         {/* Nút Tròn */}
         <Button
           variant="ghost"
@@ -99,46 +141,178 @@ const TaskCard = ({ task, index, handleTaskChanged }) => {
         {/* Hiển thị */}
         <div className="flex-1 min-w-0">
           {isEditting ? (
-            <Input
-              placeholder="Cần phải làm gì?"
-              className="flex-1 h-12 text-base border-boder/50 focus:border-primary/50 focus:ring-primary/20"
-              type="text"
-              value={updatedTaskTitle}
-              onChange={(e) => setUpdateTaskTitle(e.target.value)}
-              onKeyPress={handleKeyPress}
-              onBlur={() => {
-                setIsEditting(false);
-                setUpdateTaskTitle(task.title || "");
-              }}
-            />
+            <div className="space-y-4">
+              <Input
+                placeholder="Cần phải làm gì?"
+                className="flex-1 h-12 text-base border-boder/50 focus:border-primary/50 focus:ring-primary/20"
+                type="text"
+                value={updatedTaskTitle}
+                onChange={(e) => setUpdateTaskTitle(e.target.value)}
+                onKeyPress={handleKeyPress}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Danh mục</label>
+                  <CategorySelector
+                    value={updatedCategory}
+                    onValueChange={handleCategoryChange}
+                    placeholder="Chọn danh mục (tùy chọn)"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Độ ưu tiên</label>
+                  <Select value={updatedPriority} onValueChange={setUpdatedPriority}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Thấp</SelectItem>
+                      <SelectItem value="medium">Trung bình</SelectItem>
+                      <SelectItem value="high">Cao</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Ngày đến hạn</label>
+                <Input
+                  type="date"
+                  className="h-10"
+                  value={updatedDueDate}
+                  onChange={(e) => setUpdatedDueDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Mô tả</label>
+                <Textarea
+                  placeholder="Thêm mô tả chi tiết (tùy chọn)"
+                  className="min-h-[80px] resize-none"
+                  value={updatedDescription}
+                  onChange={(e) => setUpdatedDescription(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={updateTask} size="sm" className="flex-1">
+                  Lưu
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsEditting(false);
+                    setUpdateTaskTitle(task.title || "");
+                    setUpdatedCategory(task.category?._id || "");
+                    setUpdatedPriority(task.priority || "medium");
+                    setUpdatedDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
+                    setUpdatedDescription(task.description || "");
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                >
+                  Hủy
+                </Button>
+              </div>
+            </div>
           ) : (
-            <p
-              className={cn(
-                "text-base transition-all duration-200",
-                task.status === "complete"
-                  ? "line-through text-muted-foreground"
-                  : "text-foreground"
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <p
+                  className={cn(
+                    "text-base transition-all duration-200 flex-1",
+                    task.status === "complete"
+                      ? "line-through text-muted-foreground"
+                      : "text-foreground"
+                  )}
+                >
+                  {task.title}
+                </p>
+                {task.category && (
+                  <Badge
+                    variant="secondary"
+                    className="flex items-center gap-1 text-xs"
+                    style={{
+                      backgroundColor: `${task.category.color}20`,
+                      borderColor: task.category.color,
+                      color: task.category.color
+                    }}
+                  >
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: task.category.color }}
+                    />
+                    {task.category.name}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Priority indicator */}
+              {task.priority && task.priority !== "medium" && (
+                <div className="flex items-center gap-1">
+                  <AlertTriangle
+                    className={cn(
+                      "size-3",
+                      task.priority === "high" ? "text-destructive" :
+                      task.priority === "low" ? "text-success" : "text-info"
+                    )}
+                  />
+                  <span className={cn(
+                    "text-xs font-medium",
+                    task.priority === "high" ? "text-destructive" :
+                    task.priority === "low" ? "text-success" : "text-info"
+                  )}>
+                    {task.priority === "high" ? "Cao" :
+                     task.priority === "low" ? "Thấp" : "Trung bình"}
+                  </span>
+                </div>
               )}
-            >
-              {task.title}
-            </p>
-          )}
-          {/* Ngày tạo và ngày hoàn thành */}
-          <div className="flex items-center gap-2 mt-1">
-            <Calendar className="size-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
-              {new Date(task.createdAt).toLocaleString()}
-            </span>
-            {task.completedAt && (
-              <>
-                <span className="text-xs text-muted-foreground">-</span>
+
+              {/* Due date */}
+              {task.dueDate && (
+                <div className="flex items-center gap-1">
+                  <Clock className="size-3 text-muted-foreground" />
+                  <span className={cn(
+                    "text-xs",
+                    new Date(task.dueDate) < new Date() && task.status !== "complete"
+                      ? "text-destructive font-medium"
+                      : "text-muted-foreground"
+                  )}>
+                    Đến hạn: {new Date(task.dueDate).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+
+              {/* Description */}
+              {task.description && (
+                <div className="flex items-start gap-1">
+                  <FileText className="size-3 text-muted-foreground mt-0.5" />
+                  <p className="text-xs text-muted-foreground line-clamp-2">
+                    {task.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Ngày tạo và ngày hoàn thành */}
+              <div className="flex items-center gap-2">
                 <Calendar className="size-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  {new Date(task.completedAt).toLocaleString()}
+                  Tạo: {new Date(task.createdAt).toLocaleString()}
                 </span>
-              </>
-            )}
-          </div>
+                {task.completedAt && (
+                  <>
+                    <span className="text-xs text-muted-foreground">-</span>
+                    <Calendar className="size-3 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      Hoàn thành: {new Date(task.completedAt).toLocaleString()}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="hidden gap-2 group-hover:inline-flex animate-slide-up">
@@ -150,6 +324,10 @@ const TaskCard = ({ task, index, handleTaskChanged }) => {
             onClick={() => {
               setIsEditting(true);
               setUpdateTaskTitle(task.title || "");
+              setUpdatedCategory(task.category?._id || "");
+              setUpdatedPriority(task.priority || "medium");
+              setUpdatedDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
+              setUpdatedDescription(task.description || "");
             }}
           >
             <SquarePen className="size-4" />

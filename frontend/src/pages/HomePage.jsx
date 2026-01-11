@@ -2,32 +2,73 @@ import AddTask from "@/components/AddTask";
 import DateTimeFilter from "@/components/DateTimeFilter";
 import Footer from "@/components/Footer";
 import { Header } from "@/components/Header";
+import ReminderBanner from "@/components/ReminderBanner";
 import StatsAndFilters from "@/components/StatsAndFilters";
 import TaskList from "@/components/TaskList";
 import TaskListPagination from "@/components/TaskListPagination";
+import CategorySelector from "@/components/CategorySelector";
+import TemplateManager from "@/components/TemplateManager";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 import { visibleTaskLimit } from "@/lib/data";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router";
+import { LogIn, UserPlus } from "lucide-react";
 
 const HomePage = () => {
+  const { user, loading } = useAuth();
   const [taskBuffer, settaskBuffer] = useState([]);
   const [activeTaskCount, setactiveTaskCount] = useState([0]);
   const [completeTaskCount, setcompleteTaskCount] = useState([0]);
   const [filter, setFilter] = useState("all");
   const [dateQuery, setDateQuery] = useState("today");
   const [page, setPage] = useState(1);
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [selectedTasks, setSelectedTasks] = useState([]);
 
   useEffect(() => {
-    fetchTasks();
-  }, [dateQuery]);
+    if (user) {
+      fetchTasks();
+    }
+  }, [dateQuery, categoryFilter, user]);
 
   useEffect(() => {
     setPage(1);
-  }, [filter, dateQuery]);
+  }, [filter, dateQuery, categoryFilter]);
   
   const handleTaskChanged = () => {
     fetchTasks();
+    setSelectedTasks([]); // Clear selections after task change
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTasks.length === 0) return;
+    try {
+      await api.post('/tasks/bulk-delete', { taskIds: selectedTasks });
+      toast.success(`Đã xóa ${selectedTasks.length} nhiệm vụ`);
+      handleTaskChanged();
+    } catch (error) {
+      console.error('Lỗi khi xóa hàng loạt:', error);
+      toast.error('Lỗi khi xóa hàng loạt');
+    }
+  };
+
+  const handleBulkComplete = async () => {
+    if (selectedTasks.length === 0) return;
+    try {
+      await api.post('/tasks/bulk-update', {
+        taskIds: selectedTasks,
+        status: 'complete',
+        completedAt: new Date().toISOString()
+      });
+      toast.success(`Đã đánh dấu hoàn thành ${selectedTasks.length} nhiệm vụ`);
+      handleTaskChanged();
+    } catch (error) {
+      console.error('Lỗi khi cập nhật hàng loạt:', error);
+      toast.error('Lỗi khi cập nhật hàng loạt');
+    }
   };
 
   const handleNext = () => {
@@ -46,14 +87,20 @@ const HomePage = () => {
     setPage(newPage);
   };
   const filteredTasks = taskBuffer.filter((task) => {
+    // Filter by status
+    let statusMatch = true;
     switch (filter) {
       case "active":
-        return task.status === "active";
+        statusMatch = task.status === "active";
+        break;
       case "completed":
-        return task.status === "complete";
+        statusMatch = task.status === "complete";
+        break;
       default:
-        return true;
+        statusMatch = true;
     }
+
+    return statusMatch;
   });
 
   const visibleTasks = filteredTasks.slice(
@@ -61,7 +108,7 @@ const HomePage = () => {
     page * visibleTaskLimit
   );
 
-  if (visibleTasks.length === 0) {
+  if (visibleTasks.length === 0 && page > 1) {
     handlePrev();
   }
 
@@ -69,7 +116,11 @@ const HomePage = () => {
 
   const fetchTasks = async () => {
     try {
-      const res = await api.get(`/tasks?filter=${dateQuery}`);
+      const params = new URLSearchParams({ filter: dateQuery });
+      if (categoryFilter && categoryFilter !== "all") {
+        params.append('category', categoryFilter);
+      }
+      const res = await api.get(`/tasks?${params.toString()}`);
       settaskBuffer(res.data.tasks);
       setactiveTaskCount(res.data.activeCount);
       setcompleteTaskCount(res.data.completeCount);
@@ -79,23 +130,27 @@ const HomePage = () => {
     }
   };
 
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
   return (
-    <div className="min-h-screen w-full bg-white relative overflow-hidden">
+    <div className="min-h-screen w-full bg-background relative overflow-hidden">
       {/* Grid + Left & Right Gradient Glow */}
       <div
         className="absolute inset-0 z-0"
         style={{
           backgroundImage: `
-       linear-gradient(to right, #f0f0f0 1px, transparent 1px),
-       linear-gradient(to bottom, #f0f0f0 1px, transparent 1px),
-       radial-gradient(circle 600px at 0% 200px, #d5c5ff, transparent),
-       radial-gradient(circle 600px at 100% 200px, #d5c5ff, transparent)
+       linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
+       linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px),
+       radial-gradient(circle 600px at 0% 200px, hsl(var(--primary) / 0.1), transparent),
+       radial-gradient(circle 600px at 100% 200px, hsl(var(--primary) / 0.1), transparent)
      `,
           backgroundSize: `
-       96px 64px,    
-       96px 64px,    
-       100% 100%,    
-       100% 100%  
+       96px 64px,
+       96px 64px,
+       100% 100%,
+       100% 100%
      `,
         }}
       />
@@ -103,33 +158,64 @@ const HomePage = () => {
         <div className="w-full max-w-2xl p-6 mx-auto space-y-6 ">
           <Header />
 
-          <AddTask handleNewTaskAdded={handleTaskChanged} />
+          {user ? (
+            <>
+              <ReminderBanner tasks={taskBuffer} />
+              <AddTask handleNewTaskAdded={handleTaskChanged} />
 
-          <StatsAndFilters
-            filter={filter}
-            setFilter={setFilter}
-            activeTasksCount={activeTaskCount}
-            completedTasksCount={completeTaskCount}
-          />
-          <TaskList
-            filteredTasks={visibleTasks}
-            filter={filter}
-            handleTaskChanged={handleTaskChanged}
-          />
-          <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <TaskListPagination
-              handleNext={handleNext}
-              handlePrev={handlePrev}
-              handlePageChange={handlePageChange}
-              page={page}
-              totalPages={totalPages}
-            />
-            <DateTimeFilter dateQuery={dateQuery} setDateQuery={setDateQuery} />
-          </div>
-          <Footer
-            activeTasksCount={activeTaskCount}
-            completedTasksCount={completeTaskCount}
-          />
+              <StatsAndFilters
+                filter={filter}
+                setFilter={setFilter}
+                activeTasksCount={activeTaskCount}
+                completedTasksCount={completeTaskCount}
+              />
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium text-foreground">Lọc theo danh mục:</label>
+                <CategorySelector
+                  value={categoryFilter}
+                  onValueChange={setCategoryFilter}
+                  placeholder="Chọn danh mục"
+                />
+              </div>
+              <TaskList
+                filteredTasks={visibleTasks}
+                filter={filter}
+                handleTaskChanged={handleTaskChanged}
+                selectedTasks={selectedTasks}
+                setSelectedTasks={setSelectedTasks}
+              />
+              {selectedTasks.length > 0 && (
+                <div className="flex gap-2 justify-center">
+                  <Button onClick={handleBulkComplete} variant="default">
+                    Đánh dấu hoàn thành ({selectedTasks.length})
+                  </Button>
+                  <Button onClick={handleBulkDelete} variant="destructive">
+                    Xóa ({selectedTasks.length})
+                  </Button>
+                </div>
+              )}
+              <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
+                <TaskListPagination
+                  handleNext={handleNext}
+                  handlePrev={handlePrev}
+                  handlePageChange={handlePageChange}
+                  page={page}
+                  totalPages={totalPages}
+                />
+                <DateTimeFilter dateQuery={dateQuery} setDateQuery={setDateQuery} />
+              </div>
+              <Footer
+                activeTasksCount={activeTaskCount}
+                completedTasksCount={completeTaskCount}
+              />
+            </>
+          ) : (
+            <div className="text-center space-y-6">
+              <p className="text-muted-foreground text-lg">
+                Để sử dụng TodoX, vui lòng đăng nhập hoặc đăng ký tài khoản.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

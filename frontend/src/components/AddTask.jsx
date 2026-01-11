@@ -1,59 +1,278 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { Plus } from "lucide-react";
+import { Textarea } from "./ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Plus, Calendar, FileText, Save } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
+import TemplateManager from "./TemplateManager";
 
 const AddTask = ({ handleNewTaskAdded }) => {
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [category, setCategory] = useState(null);
+  const [dueDate, setDueDate] = useState("");
+  const [priority, setPriority] = useState("medium");
+  const [description, setDescription] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+
+  useEffect(() => {
+    fetchCategories();
+    fetchTemplates();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get("/categories");
+      setCategories(res.data);
+    } catch (error) {
+      console.error("Lỗi khi lấy categories:", error);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await api.get("/templates");
+      setTemplates(res.data);
+    } catch (error) {
+      console.error("Lỗi khi lấy templates:", error);
+    }
+  };
+
   const addTask = async () => {
     if (newTaskTitle.trim()) {
       try {
         await api.post("/tasks", {
           title: newTaskTitle,
+          category: category === "none" ? null : category || null,
+          dueDate: dueDate || null,
+          priority,
+          description,
         });
-        toast.success(`Thêm công ${newTaskTitle} việc thành công`);
+        toast.success(`Thêm công việc ${newTaskTitle} thành công`);
         handleNewTaskAdded();
+        // Reset form
+        setNewTaskTitle("");
+        setCategory("");
+        setDueDate("");
+        setPriority("medium");
+        setDescription("");
+        setSelectedTemplate(null);
+        setIsExpanded(false);
       } catch (error) {
         console.error("Lỗi xảy ra khi thêm task:", error);
         toast.error("Lỗi xảy ra khi thêm task");
       }
-      setNewTaskTitle("");
     } else {
       toast.error("Tiêu đề công việc không được để trống");
     }
   };
+
+  const handleTemplateSelect = (template) => {
+    setSelectedTemplate(template);
+    setNewTaskTitle(template.title);
+    setCategory(template.category?._id || "");
+    setDueDate(template.dueDate ? template.dueDate.split('T')[0] : "");
+    setPriority(template.priority);
+    setDescription(template.description);
+    setIsExpanded(true);
+  };
+
+  const saveAsTemplate = async () => {
+    if (!templateName.trim()) {
+      toast.error("Tên template không được để trống");
+      return;
+    }
+    try {
+      const res = await api.post("/templates", {
+        name: templateName,
+        title: newTaskTitle,
+        category: category === "none" ? null : category || null,
+        dueDate: dueDate || null,
+        priority,
+        description,
+      });
+      toast.success("Lưu template thành công");
+      setTemplates(prev => [res.data, ...prev]);
+      setShowSaveTemplate(false);
+      setTemplateName("");
+    } catch (error) {
+      console.error("Lỗi khi lưu template:", error);
+      toast.error("Lỗi khi lưu template");
+    }
+  };
+
   const handleKeyPress = (event) => {
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       addTask();
     }
   };
+
   return (
-    <div>
+    <div className="space-y-4">
       <Card className="p-6 border-0 bg-gradient-card shadow-custom-lg">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            type="text"
-            placeholder="Thêm công việc mới..."
-            className="h-12 text-base bg-slate-50 sm:flex-1 border-border/50 focus:border-primary/50 focus:ring-primary/50"
-            value={newTaskTitle}
-            onChange={(even) => setNewTaskTitle(even.target.value)}
-            onKeyPress={handleKeyPress}
-          />
-          <Button
-            variant="gradient"
-            size="xl"
-            className="px-6"
-            onClick={addTask}
-            disabled={!newTaskTitle.trim()}
-          >
-            <Plus className="size-5" />
-            Thêm
-          </Button>
+        <div className="space-y-4">
+          {/* Template Selection */}
+          <div className="flex items-center gap-2">
+            <Select value={selectedTemplate?._id || ""} onValueChange={(value) => {
+              const template = templates.find(t => t._id === value);
+              if (template) handleTemplateSelect(template);
+              else setSelectedTemplate(null);
+            }}>
+              <SelectTrigger className="w-full h-10">
+                <SelectValue placeholder="Chọn template (tùy chọn)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Không dùng template</SelectItem>
+                {templates.map((template) => (
+                  <SelectItem key={template._id} value={template._id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Input
+              type="text"
+              placeholder="Thêm công việc mới..."
+              className="h-12 text-base bg-input sm:flex-1 border-border/50 focus:border-primary/50 focus:ring-primary/50"
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              onKeyPress={handleKeyPress}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="gradient"
+                size="xl"
+                className="px-6"
+                onClick={addTask}
+                disabled={!newTaskTitle.trim()}
+              >
+                <Plus className="size-5" />
+                Thêm
+              </Button>
+              <Dialog open={showSaveTemplate} onOpenChange={setShowSaveTemplate}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="xl" className="px-4">
+                    <Save className="size-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Lưu làm Template</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="Tên template..."
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setShowSaveTemplate(false)}>
+                        Hủy
+                      </Button>
+                      <Button onClick={saveAsTemplate}>Lưu</Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-muted-foreground hover:text-primary"
+            >
+              {isExpanded ? "Ẩn chi tiết" : "Thêm chi tiết"}
+            </Button>
+          </div>
+
+          {isExpanded && (
+            <div className="space-y-4 pt-4 border-t border-border/50">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Danh mục</label>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Chọn danh mục (tùy chọn)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Không có danh mục</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat._id} value={cat._id}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: cat.color }}
+                            />
+                            {cat.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Độ ưu tiên</label>
+                  <Select value={priority} onValueChange={setPriority}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Thấp</SelectItem>
+                      <SelectItem value="medium">Trung bình</SelectItem>
+                      <SelectItem value="high">Cao</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Ngày đến hạn</label>
+                <Input
+                  type="date"
+                  className="h-10"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Mô tả</label>
+                <Textarea
+                  placeholder="Thêm mô tả chi tiết (tùy chọn)"
+                  className="min-h-[80px] resize-none"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </Card>
+
+      {/* Template Manager */}
+      <TemplateManager
+        onTemplateSelect={handleTemplateSelect}
+        templates={templates}
+        setTemplates={setTemplates}
+      />
     </div>
   );
 };

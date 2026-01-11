@@ -17,5 +17,9 @@
     "url": "https://github.com/chanhduy633/todoX/issues"
   },
   "homepage": "https://github.com/chanhduy633/todoX#readme",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-select": "^2.2.6"
+  }
 }

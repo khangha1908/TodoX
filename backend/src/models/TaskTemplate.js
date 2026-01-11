@@ -1,7 +1,12 @@
 import mongoose from "mongoose";
 
-const taskSchema = new mongoose.Schema(
+const taskTemplateSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     title: {
       type: String,
       required: true,
@@ -12,15 +17,10 @@ const taskSchema = new mongoose.Schema(
       enum: ["active", "complete"],
       default: "active",
     },
-    completedAt: {
-      type: Date,
-      default: null,
-    },
-    // ✅ THÊM FIELD NÀY
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Category',
-      required: false, // hoặc true nếu bắt buộc phải có category
+      required: false,
     },
     dueDate: {
       type: Date,
@@ -45,6 +45,6 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Task = mongoose.model("Task", taskSchema);
+const TaskTemplate = mongoose.model("TaskTemplate", taskTemplateSchema);
 
-export default Task;
+export default TaskTemplate;

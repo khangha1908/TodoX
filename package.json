@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "npm install --prefix frontend --legacy-peer-deps && npm run build --prefix frontend && npm install --prefix backend",
+    "build": "npm install --prefix frontend --legacy-peer-deps && npm run build --prefix frontend && npm install --prefix backend --production",
     "start": "npm run start --prefix backend"
   },
   "repository": {

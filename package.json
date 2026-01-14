@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "cd frontend && rm -rf node_modules package-lock.json && npm install --legacy-peer-deps && npm run build && cd .. && npm install --prefix backend",
+    "build": "npm install --prefix frontend --legacy-peer-deps && npm run build --prefix frontend && npm install --prefix backend",
     "start": "npm run start --prefix backend"
   },
   "repository": {

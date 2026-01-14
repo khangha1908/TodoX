@@ -14,12 +14,38 @@ const ReminderBanner = ({ tasks }) => {
   useEffect(() => {
     // Filter tasks that are due within 24 hours and are active
     const now = new Date();
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     const urgent = tasks.filter(task => {
       if (task.status !== 'active' || !task.dueDate) return false;
-      const dueDate = new Date(task.dueDate);
-      return dueDate >= now && dueDate <= tomorrow;
+      
+      // Combine dueDate and dueTime
+      const taskDateTime = new Date(task.dueDate);
+      if (task.dueTime) {
+        const [hours, minutes] = task.dueTime.split(':');
+        taskDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      } else {
+        // If no time specified, set to end of day
+        taskDateTime.setHours(23, 59, 59, 999);
+      }
+      
+      // Calculate hours until due
+      const hoursUntilDue = (taskDateTime - now) / (1000 * 60 * 60);
+      
+      // Show tasks that are due within 24 hours and haven't passed yet
+      return hoursUntilDue > 0 && hoursUntilDue <= 24;
+    }).sort((a, b) => {
+      // Sort by closest deadline first
+      const getDateTime = (task) => {
+        const dt = new Date(task.dueDate);
+        if (task.dueTime) {
+          const [hours, minutes] = task.dueTime.split(':');
+          dt.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        } else {
+          dt.setHours(23, 59, 59, 999);
+        }
+        return dt;
+      };
+      return getDateTime(a) - getDateTime(b);
     });
 
     setUrgentTasks(urgent);
@@ -43,10 +69,19 @@ const ReminderBanner = ({ tasks }) => {
     return null;
   }
 
-  const formatTimeRemaining = (dueDate) => {
+  const formatTimeRemaining = (task) => {
     const now = new Date();
-    const due = new Date(dueDate);
-    const diffMs = due - now;
+    
+    // Combine dueDate and dueTime
+    const taskDateTime = new Date(task.dueDate);
+    if (task.dueTime) {
+      const [hours, minutes] = task.dueTime.split(':');
+      taskDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    } else {
+      taskDateTime.setHours(23, 59, 59, 999);
+    }
+    
+    const diffMs = taskDateTime - now;
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
@@ -57,6 +92,20 @@ const ReminderBanner = ({ tasks }) => {
     } else {
       return "Đã đến hạn";
     }
+  };
+
+  const formatDueDateTime = (task) => {
+    const date = new Date(task.dueDate);
+    const dateStr = date.toLocaleDateString('vi-VN', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    
+    if (task.dueTime) {
+      return `${task.dueTime} ngày ${dateStr}`;
+    }
+    return `ngày ${dateStr}`;
   };
 
   return (
@@ -86,7 +135,10 @@ const ReminderBanner = ({ tasks }) => {
                     {task.title}
                   </p>
                   <p className="text-xs text-orange-700 dark:text-orange-300">
-                    Còn {formatTimeRemaining(task.dueDate)}
+                    {formatDueDateTime(task)}
+                  </p>
+                  <p className="text-xs font-semibold text-orange-800 dark:text-orange-200">
+                    Còn {formatTimeRemaining(task)}
                   </p>
                 </div>
                 {task.priority === 'high' && (

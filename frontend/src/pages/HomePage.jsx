@@ -8,6 +8,9 @@ import TaskList from "@/components/TaskList";
 import TaskListPagination from "@/components/TaskListPagination";
 import CategorySelector from "@/components/CategorySelector";
 import TemplateManager from "@/components/TemplateManager";
+import ExportButton from "@/components/ExportButton";
+import ImportModal from "@/components/ImportModal";
+import CalendarGridView from "@/components/CalendarGridView";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
@@ -15,29 +18,80 @@ import { visibleTaskLimit } from "@/lib/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router";
-import { LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus, List, Calendar } from "lucide-react";
+import { scheduleTaskReminders, cancelTaskReminders, updateTaskReminders, requestNotificationPermission, restoreRemindersFromStorage } from "@/lib/notifications";
 
 const HomePage = () => {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
   const [taskBuffer, settaskBuffer] = useState([]);
-  const [activeTaskCount, setactiveTaskCount] = useState([0]);
-  const [completeTaskCount, setcompleteTaskCount] = useState([0]);
+  const [activeTaskCount, setactiveTaskCount] = useState(0);
+  const [completeTaskCount, setcompleteTaskCount] = useState(0);
   const [filter, setFilter] = useState("all");
-  const [dateQuery, setDateQuery] = useState("today");
+  const [dateQuery, setDateQuery] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [categoryFilter, setCategoryFilter] = useState("");
   const [selectedTasks, setSelectedTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("list"); // "list" or "calendar"
 
   useEffect(() => {
     if (user) {
-      fetchTasks();
+      const loadData = async () => {
+        setLoading(true);
+        await fetchTasks();
+        // Restore reminders from localStorage on page load
+        restoreRemindersFromStorage();
+        setLoading(false);
+      };
+      loadData();
+    } else {
+      setLoading(false);
     }
-  }, [dateQuery, categoryFilter, user]);
+  }, [user]);
 
+  // Request notification permission and schedule reminders when tasks change
   useEffect(() => {
-    setPage(1);
-  }, [filter, dateQuery, categoryFilter]);
-  
+    const setupNotifications = async () => {
+      if (user && taskBuffer.length > 0) {
+        // Request notification permission
+        await requestNotificationPermission();
+
+        // Cancel all existing reminders first
+        taskBuffer.forEach(task => {
+          cancelTaskReminders(task._id);
+        });
+
+        // Schedule reminders for all active tasks
+        taskBuffer.forEach(task => {
+          if (task.status === 'active' && task.dueDate) {
+            scheduleTaskReminders(task);
+          }
+        });
+      }
+    };
+
+    setupNotifications();
+
+    // Cleanup function to cancel all reminders when component unmounts
+    return () => {
+      taskBuffer.forEach(task => {
+        cancelTaskReminders(task._id);
+      });
+    };
+  }, [user, taskBuffer]);
+
+  // Additional effect to ensure reminders are scheduled after initial load
+  useEffect(() => {
+    if (user && taskBuffer.length > 0 && !loading) {
+      // Double-check that reminders are scheduled for all active tasks
+      taskBuffer.forEach(task => {
+        if (task.status === 'active' && task.dueDate) {
+          scheduleTaskReminders(task);
+        }
+      });
+    }
+  }, [user, taskBuffer, loading]);
+
   const handleTaskChanged = () => {
     fetchTasks();
     setSelectedTasks([]); // Clear selections after task change
@@ -120,6 +174,9 @@ const HomePage = () => {
       if (categoryFilter && categoryFilter !== "all") {
         params.append('category', categoryFilter);
       }
+      // Add timestamp to prevent caching
+      params.append('_t', Date.now());
+
       const res = await api.get(`/tasks?${params.toString()}`);
       settaskBuffer(res.data.tasks);
       setactiveTaskCount(res.data.activeCount);
@@ -177,13 +234,42 @@ const HomePage = () => {
                   placeholder="Chọn danh mục"
                 />
               </div>
-              <TaskList
-                filteredTasks={visibleTasks}
-                filter={filter}
-                handleTaskChanged={handleTaskChanged}
-                selectedTasks={selectedTasks}
-                setSelectedTasks={setSelectedTasks}
-              />
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium text-foreground">Chế độ xem:</label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={viewMode === "list" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode("list")}
+                  >
+                    <List className="h-4 w-4 mr-2" />
+                    Danh sách
+                  </Button>
+                  <Button
+                    variant={viewMode === "calendar" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode("calendar")}
+                  >
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Lịch
+                  </Button>
+                </div>
+              </div>
+              {viewMode === "list" ? (
+                <TaskList
+                  filteredTasks={visibleTasks}
+                  filter={filter}
+                  handleTaskChanged={handleTaskChanged}
+                  selectedTasks={selectedTasks}
+                  setSelectedTasks={setSelectedTasks}
+                />
+              ) : (
+                <CalendarGridView
+                  tasks={taskBuffer}
+                  categoryFilter={categoryFilter}
+                  handleTaskChanged={handleTaskChanged}
+                />
+              )}
               {selectedTasks.length > 0 && (
                 <div className="flex gap-2 justify-center">
                   <Button onClick={handleBulkComplete} variant="default">
@@ -194,6 +280,10 @@ const HomePage = () => {
                   </Button>
                 </div>
               )}
+              <div className="flex items-center justify-center gap-4">
+                <ExportButton />
+                <ImportModal onImportSuccess={handleTaskChanged} />
+              </div>
               <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
                 <TaskListPagination
                   handleNext={handleNext}

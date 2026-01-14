@@ -1,0 +1,4 @@
+- [x] Fix notification restoration on page refresh
+  - [x] Add restoreRemindersFromStorage call on HomePage mount
+  - [x] Modify setupNotifications useEffect to reschedule all reminders on load
+- [ ] Test notification functionality after changes

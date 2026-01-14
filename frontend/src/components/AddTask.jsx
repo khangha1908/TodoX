@@ -8,12 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Calendar, FileText, Save } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
+import { scheduleTaskReminders } from "@/lib/notifications";
 import TemplateManager from "./TemplateManager";
 
 const AddTask = ({ handleNewTaskAdded }) => {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [category, setCategory] = useState(null);
   const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
   const [priority, setPriority] = useState("medium");
   const [description, setDescription] = useState("");
   const [categories, setCategories] = useState([]);
@@ -53,6 +55,7 @@ const AddTask = ({ handleNewTaskAdded }) => {
           title: newTaskTitle,
           category: category === "none" ? null : category || null,
           dueDate: dueDate || null,
+          dueTime: dueTime || null,
           priority,
           description,
         });
@@ -62,6 +65,7 @@ const AddTask = ({ handleNewTaskAdded }) => {
         setNewTaskTitle("");
         setCategory("");
         setDueDate("");
+        setDueTime("");
         setPriority("medium");
         setDescription("");
         setSelectedTemplate(null);
@@ -241,15 +245,27 @@ const AddTask = ({ handleNewTaskAdded }) => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Ngày đến hạn</label>
-                <Input
-                  type="date"
-                  className="h-10"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Ngày đến hạn</label>
+                  <Input
+                    type="date"
+                    className="h-10"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Giờ đến hạn</label>
+                  <Input
+                    type="time"
+                    className="h-10"
+                    value={dueTime}
+                    onChange={(e) => setDueTime(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

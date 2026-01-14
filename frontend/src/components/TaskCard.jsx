@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/axios";
 import { toast } from "sonner";
+import { updateTaskReminders } from "@/lib/notifications";
 
 const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }) => {
   const [isEditting, setIsEditting] = useState(false);
@@ -28,8 +29,32 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
   const [updatedCategory, setUpdatedCategory] = useState(task.category?._id || "none");
   const [updatedPriority, setUpdatedPriority] = useState(task.priority || "medium");
   const [updatedDueDate, setUpdatedDueDate] = useState(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
+  const [updatedDueTime, setUpdatedDueTime] = useState(task.dueTime || "");
   const [updatedDescription, setUpdatedDescription] = useState(task.description || "");
   const [categories, setCategories] = useState([]);
+
+  // Calculate deadline urgency
+  const getDeadlineUrgency = () => {
+    if (!task.dueDate || task.status === "complete") return null;
+
+    const now = new Date();
+    let dueDateTime = new Date(task.dueDate);
+
+    if (task.dueTime) {
+      const [hours, minutes] = task.dueTime.split(':');
+      dueDateTime.setHours(parseInt(hours), parseInt(minutes));
+    }
+
+    const timeDiff = dueDateTime - now;
+    const hoursDiff = timeDiff / (1000 * 60 * 60);
+
+    if (timeDiff < 0) return 'overdue';
+    if (hoursDiff <= 1) return 'urgent'; // Within 1 hour
+    if (hoursDiff <= 24) return 'soon'; // Within 24 hours
+    return null;
+  };
+
+  const deadlineUrgency = getDeadlineUrgency();
 
   useEffect(() => {
     fetchCategories();
@@ -58,14 +83,21 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
   const updateTask = async () => {
     try {
       setIsEditting(false);
-      await api.put(`/tasks/${task._id}`, {
+      const updatedTaskData = {
         title: updatedTaskTitle,
         category: updatedCategory || null,
         priority: updatedPriority,
         dueDate: updatedDueDate ? new Date(updatedDueDate).toISOString() : null,
+        dueTime: updatedDueTime || null,
         description: updatedDescription,
-      });
+      };
+      await api.put(`/tasks/${task._id}`, updatedTaskData);
       toast.success("Cập nhật task thành công");
+
+      // Update reminders for the task
+      const updatedTask = { ...task, ...updatedTaskData };
+      updateTaskReminders(task, updatedTask);
+
       handleTaskChanged();
     } catch (error) {
       console.error("Lỗi xảy ra khi cập nhật task:", error);
@@ -109,7 +141,10 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
     <Card
       className={cn(
         "p-4 bg-gradient-card border-0 shadow-custom-md hover:shadow-custom-lg transition-all duration-200 animate-fade-in group",
-        task.status === "complete" && "opacity-75"
+        task.status === "complete" && "opacity-75",
+        deadlineUrgency === 'overdue' && "border-l-4 border-l-destructive bg-destructive/5",
+        deadlineUrgency === 'urgent' && "border-l-4 border-l-orange-500 bg-orange-500/5",
+        deadlineUrgency === 'soon' && "border-l-4 border-l-yellow-500 bg-yellow-500/5"
       )}
       style={{ animationDelay: `${index * 50}ms` }}
     >
@@ -175,15 +210,27 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Ngày đến hạn</label>
-                <Input
-                  type="date"
-                  className="h-10"
-                  value={updatedDueDate}
-                  onChange={(e) => setUpdatedDueDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Ngày đến hạn</label>
+                  <Input
+                    type="date"
+                    className="h-10"
+                    value={updatedDueDate}
+                    onChange={(e) => setUpdatedDueDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Giờ đến hạn</label>
+                  <Input
+                    type="time"
+                    className="h-10"
+                    value={updatedDueTime}
+                    onChange={(e) => setUpdatedDueTime(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -207,6 +254,7 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
                     setUpdatedCategory(task.category?._id || "");
                     setUpdatedPriority(task.priority || "medium");
                     setUpdatedDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
+                    setUpdatedDueTime(task.dueTime || "");
                     setUpdatedDescription(task.description || "");
                   }}
                   variant="outline"
@@ -280,7 +328,7 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
                       ? "text-destructive font-medium"
                       : "text-muted-foreground"
                   )}>
-                    Đến hạn: {new Date(task.dueDate).toLocaleDateString()}
+                    Đến hạn: {new Date(task.dueDate).toLocaleDateString()}{task.dueTime ? ` lúc ${task.dueTime}` : ''}
                   </span>
                 </div>
               )}
@@ -327,6 +375,7 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
               setUpdatedCategory(task.category?._id || "");
               setUpdatedPriority(task.priority || "medium");
               setUpdatedDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
+              setUpdatedDueTime(task.dueTime || "");
               setUpdatedDescription(task.description || "");
             }}
           >

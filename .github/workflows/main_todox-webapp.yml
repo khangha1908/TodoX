@@ -13,17 +13,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
-          node-version: '20.x'
+          node-version: '18.x'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Clean frontend
+        run: rm -rf frontend/node_modules frontend/package-lock.json
 
-      # Nếu có build (React / Vite / Next)
-      # - name: Build app
-      #   run: npm run build
+      - name: Install frontend
+        run: npm install --prefix frontend
+
+      - name: Build frontend
+        run: npm run build --prefix frontend
+
+      - name: Install backend
+        run: npm install --prefix backend
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -41,13 +45,6 @@ jobs:
         with:
           name: node-app
 
-      # 🚨 QUAN TRỌNG – tránh lỗi 409
-      - name: Stop Azure Web App
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            az webapp stop --name todox-webapp --resource-group todox-rg
-
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
@@ -55,9 +52,3 @@ jobs:
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_BBCDBB813DC74D77B65FBFCBA76D353D }}
           package: .
-
-      - name: Start Azure Web App
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            az webapp start --name todox-webapp --resource-group todox-rg

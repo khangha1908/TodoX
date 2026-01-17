@@ -1,26 +1,13 @@
 {
   "name": "todox",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "backend/src/server.js",
   "engines": {
     "node": ">=18.x",
     "npm": ">=9.x"
   },
   "scripts": {
-    "build": "cd frontend && rm -rf node_modules package-lock.json && npm install && npm run build && cd .. && npm install --prefix backend",
-    "start": "node backend/src/server.js",
-    "postinstall": "npm install --prefix backend"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/khangha1908/TodoX.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/khangha1908/TodoX/issues"
-  },
-  "homepage": "https://github.com/khangha1908/TodoX#readme",
-  "description": ""
+    "build": "npm install --prefix frontend && npm run build --prefix frontend && npm install --prefix backend",
+    "start": "node backend/src/server.js"
+  }
 }

@@ -2,9 +2,14 @@
   "name": "todox",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": ">=18.x",
+    "npm": ">=9.x"
+  },
   "scripts": {
-    "build": "npm install --prefix frontend --legacy-peer-deps && npm run build --prefix frontend && npm install --prefix backend --production",
-    "start": "npm run start --prefix backend"
+    "build": "npm install --prefix frontend --legacy-peer-deps && npm run build --prefix frontend && npm install --prefix backend",
+    "start": "node backend/index.js",
+    "postinstall": "npm install --prefix backend"
   },
   "repository": {
     "type": "git",
@@ -17,9 +22,5 @@
     "url": "https://github.com/khangha1908/TodoX/issues"
   },
   "homepage": "https://github.com/khangha1908/TodoX#readme",
-  "description": "",
-  "dependencies": {
-    "@radix-ui/react-label": "^2.1.8",
-    "@radix-ui/react-select": "^2.2.6"
-  }
+  "description": ""
 }

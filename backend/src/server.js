@@ -7,19 +7,30 @@ import { connectDB } from "./config/db.js";
 import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
-const PORT = process.env.PORT || 5001;
-const __dirname = path.resolve();
+const PORT = process.env.PORT || 8080;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
 app.use(express.json());
 
-if (process.env.NODE_ENV !== "production") {
-  app.use(cors({ origin: "http://localhost:5173" }));
-}
+const allowedOrigins =
+  process.env.NODE_ENV === "production"
+    ? ["https://todox-webapp.azurewebsites.net"]
+    : ["http://localhost:5173"];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
 
 app.use("/api/auth", authRouter);
 app.use("/api/tasks", tasksRouter);
@@ -36,6 +47,6 @@ if (process.env.NODE_ENV === "production") {
 
 connectDB().then(() => {
   app.listen(PORT, () => {
-    console.log(`Server bắt đầu trên cổng ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
   });
 });

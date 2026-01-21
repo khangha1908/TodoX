@@ -18,6 +18,9 @@ import {
   AlertTriangle,
   Clock,
   FileText,
+  Download,
+  Image,
+  File,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { toast } from "sonner";
@@ -340,6 +343,42 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
                   <p className="text-xs text-muted-foreground line-clamp-2">
                     {task.description}
                   </p>
+                </div>
+              )}
+
+              {/* Attachments */}
+              {task.attachments && task.attachments.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1">
+                    <FileText className="size-3 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      Tệp đính kèm ({task.attachments.length})
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {task.attachments.map((attachment, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {attachment.type?.startsWith('image/') ? (
+                            <Image className="size-4 text-muted-foreground flex-shrink-0" />
+                          ) : (
+                            <File className="size-4 text-muted-foreground flex-shrink-0" />
+                          )}
+                          <span className="text-xs text-foreground truncate">
+                            {attachment.name}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex-shrink-0 h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                          onClick={() => window.open(attachment.url, '_blank')}
+                        >
+                          <Download className="size-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

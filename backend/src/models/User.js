@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
       required: [true, "Mật khẩu là bắt buộc"],
       minlength: [6, "Mật khẩu phải có ít nhất 6 ký tự"],
     },
+    avatar: {
+      type: String, // URL to avatar image on Azure Blob Storage
+      default: null,
+    },
   },
   {
     timestamps: true,

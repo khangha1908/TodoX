@@ -1,11 +1,11 @@
 import express from 'express';
 import multer from 'multer';
-import { getAllTasks, getTasksForCalendar, createTask,updateTask, deleteTask, bulkDeleteTasks, bulkUpdateTasks, exportTasksToCSV, exportTasksToJSON, exportTasksToExcel, importTasks } from '../controllers/tasksControllers.js';
+import { getAllTasks, getTasksForCalendar, createTask,updateTask, deleteTask, bulkDeleteTasks, bulkUpdateTasks, exportTasksToCSV, exportTasksToJSON, exportTasksToExcel, importTasks, uploadAttachment, deleteAttachment, backupTasks } from '../controllers/tasksControllers.js';
 import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
-// Configure multer for file uploads
-const upload = multer({
+// Configure multer for import file uploads
+const importUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
@@ -14,6 +14,29 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only CSV, JSON, and Excel files are allowed.'));
+    }
+  }
+});
+
+// Configure multer for attachment uploads
+const attachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    // Allow common file types for attachments
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf',
+      'text/plain',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type for attachment.'));
     }
   }
 });
@@ -36,6 +59,13 @@ router.get("/export/json", protect, exportTasksToJSON);
 router.get("/export/excel", protect, exportTasksToExcel);
 
 // Import route
-router.post("/import", protect, upload.single('file'), importTasks);
+router.post("/import", protect, importUpload.single('file'), importTasks);
+
+// Attachment routes
+router.post("/:taskId/attachments", protect, attachmentUpload.single('file'), uploadAttachment);
+router.delete("/:taskId/attachments/:attachmentId", protect, deleteAttachment);
+
+// Backup route
+router.post("/backup", protect, backupTasks);
 
 export default router;

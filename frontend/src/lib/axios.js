@@ -6,12 +6,21 @@ const api = axios.create({
   baseURL: BASE_URL,
 }); 
 
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Export/Import API functions
 export const exportTasks = async (format) => {
   try {
-    const response = await api.get(`/tasks/export/${format}`, {
-      responseType: 'blob',
-    });
+    const response = await api.get(`/tasks/export/${format}`);
     return response;
   } catch (error) {
     throw error;

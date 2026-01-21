@@ -16,14 +16,27 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      // Verify token and set user
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      // You might want to fetch user data here
-      setUser({ token });
-    }
-    setLoading(false);
+    const initializeAuth = async () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        // Verify token and set user
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+        try {
+          // Fetch full user profile including avatar
+          const response = await api.get("/auth/profile");
+          setUser(response.data.user);
+        } catch (error) {
+          console.error("Failed to fetch user profile:", error);
+          // If profile fetch fails, clear token
+          localStorage.removeItem("token");
+          delete api.defaults.headers.common["Authorization"];
+        }
+      }
+      setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (email, password) => {
@@ -32,7 +45,11 @@ export const AuthProvider = ({ children }) => {
       const { token, user: userData } = response.data;
       localStorage.setItem("token", token);
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      setUser(userData);
+
+      // Fetch full user profile including avatar
+      const profileResponse = await api.get("/auth/profile");
+      setUser(profileResponse.data.user);
+
       return { success: true };
     } catch (error) {
       return { success: false, message: error.response?.data?.message || "Login failed" };
@@ -54,11 +71,23 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      const response = await api.get("/auth/profile");
+      setUser(response.data.user);
+    } catch (error) {
+      console.error("Failed to refresh user data:", error);
+      // If refresh fails, logout user
+      logout();
+    }
+  };
+
   const value = {
     user,
     login,
     register,
     logout,
+    refreshUser,
     loading,
   };
 

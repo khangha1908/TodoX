@@ -9,5 +9,10 @@
   "scripts": {
     "build": "npm install --prefix frontend && npm run build --prefix frontend && npm install --prefix backend",
     "start": "node backend/src/server.js"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.13.0",
+    "@azure/storage-blob": "^12.30.0",
+    "uuid": "^13.0.0"
   }
 }

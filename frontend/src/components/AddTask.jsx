@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
-import { Plus, Calendar, FileText, Save } from "lucide-react";
+import { Plus, Calendar, FileText, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 import { scheduleTaskReminders } from "@/lib/notifications";
@@ -24,6 +24,7 @@ const AddTask = ({ handleNewTaskAdded }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [attachments, setAttachments] = useState([]);
 
   useEffect(() => {
     fetchCategories();
@@ -51,7 +52,8 @@ const AddTask = ({ handleNewTaskAdded }) => {
   const addTask = async () => {
     if (newTaskTitle.trim()) {
       try {
-        await api.post("/tasks", {
+        // Create task first
+        const taskResponse = await api.post("/tasks", {
           title: newTaskTitle,
           category: category === "none" ? null : category || null,
           dueDate: dueDate || null,
@@ -59,8 +61,31 @@ const AddTask = ({ handleNewTaskAdded }) => {
           priority,
           description,
         });
+
+        const newTask = taskResponse.data;
+
+        // Upload attachments if any
+        if (attachments.length > 0) {
+          for (const attachment of attachments) {
+            try {
+              const formData = new FormData();
+              formData.append('file', attachment.file);
+
+              await api.post(`/tasks/${newTask._id}/attachments`, formData, {
+                headers: {
+                  'Content-Type': 'multipart/form-data',
+                },
+              });
+            } catch (uploadError) {
+              console.error("Lỗi khi upload file:", uploadError);
+              toast.error(`Lỗi khi upload file ${attachment.name}`);
+            }
+          }
+        }
+
         toast.success(`Thêm công việc ${newTaskTitle} thành công`);
         handleNewTaskAdded();
+
         // Reset form
         setNewTaskTitle("");
         setCategory("");
@@ -69,6 +94,7 @@ const AddTask = ({ handleNewTaskAdded }) => {
         setPriority("medium");
         setDescription("");
         setSelectedTemplate(null);
+        setAttachments([]);
         setIsExpanded(false);
       } catch (error) {
         console.error("Lỗi xảy ra khi thêm task:", error);
@@ -118,6 +144,38 @@ const AddTask = ({ handleNewTaskAdded }) => {
       event.preventDefault();
       addTask();
     }
+  };
+
+  const handleFileSelect = (event) => {
+    const files = Array.from(event.target.files);
+    const validFiles = files.filter(file => {
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        toast.error(`${file.name} quá lớn. Kích thước tối đa là 10MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    setAttachments(prev => [...prev, ...validFiles.map(file => ({
+      file,
+      id: Date.now() + Math.random(),
+      name: file.name,
+      size: file.size,
+      type: file.type
+    }))]);
+  };
+
+  const removeAttachment = (id) => {
+    setAttachments(prev => prev.filter(att => att.id !== id));
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
@@ -277,6 +335,38 @@ const AddTask = ({ handleNewTaskAdded }) => {
                   onChange={(e) => setDescription(e.target.value)}
                   onKeyPress={handleKeyPress}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Tệp đính kèm</label>
+                <Input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar"
+                  onChange={handleFileSelect}
+                  className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                />
+                {attachments.length > 0 && (
+                  <div className="space-y-2">
+                    {attachments.map((att) => (
+                      <div key={att.id} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                        <div className="flex items-center gap-2">
+                          <FileText className="size-4 text-muted-foreground" />
+                          <span className="text-sm">{att.name}</span>
+                          <span className="text-xs text-muted-foreground">({formatFileSize(att.size)})</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAttachment(att.id)}
+                          className="text-destructive hover:text-destructive/80"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

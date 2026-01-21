@@ -20,6 +20,9 @@ const app = express();
 
 app.use(express.json());
 
+// Serve static files from uploads directory
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
+
 const allowedOrigins =
   process.env.NODE_ENV === "production"
     ? ["https://todox-webapp.azurewebsites.net"]

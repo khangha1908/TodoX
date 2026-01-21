@@ -1,5 +1,5 @@
-import { BlobServiceClient } from '@azure/storage-blob';
-import { DefaultAzureCredential } from '@azure/identity';
+import { BlobServiceClient } from '../azure/storage-blob';
+import { DefaultAzureCredential } from '../azure/identity';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';

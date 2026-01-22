@@ -150,7 +150,9 @@ export const uploadAvatar = async (req, res) => {
       const filePath = path.join(userDir, uniqueFileName);
 
       fs.writeFileSync(filePath, file.buffer);
-      avatarUrl = `/api/uploads/avatars/${req.user._id}/${uniqueFileName}`;
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+avatarUrl = `${baseUrl}/api/uploads/avatars/${req.user._id}/${uniqueFileName}`;
+
     }
 
     // Update user avatar

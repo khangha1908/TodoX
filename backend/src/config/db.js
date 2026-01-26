@@ -1,5 +1,5 @@
 import { CosmosClient } from '@azure/cosmos';
-
+import crypto from 'crypto';
 let client;
 let database;
 

@@ -8,7 +8,7 @@ import api from "@/lib/axios";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 
-const CategorySelector = ({ value, onValueChange, placeholder = "Chọn danh mục" }) => {
+const CategorySelector = ({ value, onValueChange, placeholder = "Chọn danh mục", onCategoryCreated }) => {
   const [categories, setCategories] = useState([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -22,11 +22,27 @@ const CategorySelector = ({ value, onValueChange, placeholder = "Chọn danh m�
   const fetchCategories = async () => {
     try {
       const res = await api.get("/categories");
+      console.log("CategorySelector fetching categories:", res.data);
       setCategories(res.data);
     } catch (error) {
       console.error("Lỗi khi lấy categories:", error);
     }
   };
+
+  // Listen for category creation events from other components
+  useEffect(() => {
+    const handleCategoryCreated = () => {
+      console.log("CategorySelector received category creation event");
+      fetchCategories();
+    };
+
+    // Listen for custom event
+    window.addEventListener('categoryCreated', handleCategoryCreated);
+
+    return () => {
+      window.removeEventListener('categoryCreated', handleCategoryCreated);
+    };
+  }, []);
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
@@ -42,8 +58,20 @@ const CategorySelector = ({ value, onValueChange, placeholder = "Chọn danh m�
       });
 
       toast.success("Tạo danh mục thành công");
-      setCategories(prev => [res.data, ...prev]);
-      onValueChange(res.data._id);
+      await fetchCategories(); // Refresh categories from server
+      onValueChange(res.data.id);
+
+      // Dispatch custom event to notify all CategorySelector components
+      console.log("Dispatching categoryCreated event");
+      window.dispatchEvent(new CustomEvent('categoryCreated'));
+
+      // Call the callback to notify parent components
+      console.log("Calling onCategoryCreated callback");
+      if (onCategoryCreated) {
+        onCategoryCreated();
+      } else {
+        console.log("onCategoryCreated callback is not defined");
+      }
       setNewCategoryName("");
       setNewCategoryColor("#6366f1");
       setIsDialogOpen(false);
@@ -79,7 +107,7 @@ const CategorySelector = ({ value, onValueChange, placeholder = "Chọn danh m�
             </div>
           </SelectItem>
           {categories.map((cat) => (
-            <SelectItem key={cat._id} value={cat._id}>
+            <SelectItem key={cat.id} value={cat.id}>
               <div className="flex items-center gap-2">
                 <div
                   className="w-3 h-3 rounded-full"

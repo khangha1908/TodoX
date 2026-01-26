@@ -11,7 +11,8 @@ const CalendarGridView = ({ tasks, categoryFilter, handleTaskChanged }) => {
   // Filter tasks by category
   const filteredTasks = useMemo(() => {
     if (categoryFilter === 'all') return tasks;
-    return tasks.filter(task => task.category === categoryFilter);
+    if (categoryFilter === 'none') return tasks.filter(task => !task.category);
+    return tasks.filter(task => task.category && task.category._id === categoryFilter);
   }, [tasks, categoryFilter]);
 
   // Get tasks for a specific date

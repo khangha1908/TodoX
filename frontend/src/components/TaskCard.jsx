@@ -29,12 +29,14 @@ import { updateTaskReminders } from "@/lib/notifications";
 const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }) => {
   const [isEditting, setIsEditting] = useState(false);
   const [updatedTaskTitle, setUpdateTaskTitle] = useState(task.title || "");
-  const [updatedCategory, setUpdatedCategory] = useState(task.category?._id || "none");
+  const [updatedCategory, setUpdatedCategory] = useState(task.category?.id || "none");
   const [updatedPriority, setUpdatedPriority] = useState(task.priority || "medium");
   const [updatedDueDate, setUpdatedDueDate] = useState(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
   const [updatedDueTime, setUpdatedDueTime] = useState(task.dueTime || "");
   const [updatedDescription, setUpdatedDescription] = useState(task.description || "");
   const [categories, setCategories] = useState([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
 
   // Calculate deadline urgency
   const getDeadlineUrgency = () => {
@@ -73,6 +75,8 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
   };
 
   const deleteTask = async (taskId) => {
+    if (isDeleting) return;
+    setIsDeleting(true);
     try {
       await api.delete(`/tasks/${taskId}`);
       toast.success("Xóa task thành công");
@@ -80,6 +84,8 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
     } catch (error) {
       console.error("Lỗi xảy ra khi xóa task:", error);
       toast.error("Lỗi xảy ra khi xóa task");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -94,7 +100,7 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
         dueTime: updatedDueTime || null,
         description: updatedDescription,
       };
-      await api.put(`/tasks/${task._id}`, updatedTaskData);
+      await api.put(`/tasks/${task.id}`, updatedTaskData);
       toast.success("Cập nhật task thành công");
 
       // Update reminders for the task
@@ -109,15 +115,17 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
   };
 
   const toggleTaskCompleteButton = async () => {
+    if (isToggling) return;
+    setIsToggling(true);
     try {
       if (task.status === "active") {
-        await api.put(`/tasks/${task._id}`, {
+        await api.put(`/tasks/${task.id}`, {
           status: "complete",
           completedAt: new Date().toISOString(),
         });
         toast.success(`Đánh dấu công việc ${task.title} đã hoàn thành`);
       } else {
-        await api.put(`/tasks/${task._id}`, {
+        await api.put(`/tasks/${task.id}`, {
           status: "active",
           completedAt: null,
         });
@@ -127,6 +135,8 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
     } catch (error) {
       console.error("Lỗi xảy ra khi cập nhật task:", error);
       toast.error("Lỗi xảy ra khi cập nhật task");
+    } finally {
+      setIsToggling(false);
     }
   };
 
@@ -169,6 +179,7 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
               : "text-muted-foreground hover:text-primary"
           )}
           onClick={toggleTaskCompleteButton}
+          disabled={isToggling}
         >
           {task.status === "complete" ? (
             <CheckCircle2 className="size-5" />
@@ -194,6 +205,7 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
                   <CategorySelector
                     value={updatedCategory}
                     onValueChange={handleCategoryChange}
+                    onCategoryCreated={fetchCategories}
                     placeholder="Chọn danh mục (tùy chọn)"
                   />
                 </div>
@@ -254,7 +266,7 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
                   onClick={() => {
                     setIsEditting(false);
                     setUpdateTaskTitle(task.title || "");
-                    setUpdatedCategory(task.category?._id || "");
+                    setUpdatedCategory(task.category?.id || "");
                     setUpdatedPriority(task.priority || "medium");
                     setUpdatedDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
                     setUpdatedDueTime(task.dueTime || "");
@@ -411,7 +423,7 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
             onClick={() => {
               setIsEditting(true);
               setUpdateTaskTitle(task.title || "");
-              setUpdatedCategory(task.category?._id || "");
+              setUpdatedCategory(task.category?.id || "");
               setUpdatedPriority(task.priority || "medium");
               setUpdatedDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "");
               setUpdatedDueTime(task.dueTime || "");
@@ -425,7 +437,8 @@ const TaskCard = ({ task, index, handleTaskChanged, isSelected, onSelectChange }
             variant="ghost"
             size="icon"
             className="flex-shrink-0 transition-colors size-8 text-muted-foreground hover:text-destructive"
-            onClick={() => deleteTask(task._id)}
+            onClick={() => deleteTask(task.id)}
+            disabled={isDeleting}
           >
             <Trash2 className="size-4" />
           </Button>

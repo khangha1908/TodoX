@@ -11,8 +11,7 @@ import { fileURLToPath } from "url";
 
 dotenv.config();
 
-const PORT = process.env.PORT || 8080;
-
+const PORT = process.env.PORT;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -21,7 +20,14 @@ const app = express();
 app.use(express.json());
 
 // Serve static files from uploads directory
-app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads'), {
+  setHeaders: (res, path) => {
+    // Set cache control for images
+    if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.gif') || path.endsWith('.webp')) {
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+    }
+  }
+}));
 
 const allowedOrigins =
   process.env.NODE_ENV === "production"
@@ -34,6 +40,14 @@ app.use(
     credentials: true,
   })
 );
+
+// Allow images to be loaded from any origin (for avatar display)
+app.use('/api/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
 
 app.use("/api/auth", authRouter);
 app.use("/api/tasks", tasksRouter);

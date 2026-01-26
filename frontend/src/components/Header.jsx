@@ -9,6 +9,7 @@ import api from "@/lib/axios";
 
 export const Header = () => {
   const { user, logout, refreshUser } = useAuth(); // ⭐ Thêm refreshUser
+  console.log('user.avatar:', user?.avatar);
   const { theme, toggleTheme } = useTheme();
   const fileInputRef = useRef(null);
 
@@ -166,7 +167,7 @@ export const Header = () => {
             <div className="relative">
               {user.avatar ? (
                 <img
-                  src={user.avatar}
+                  src={`${user.avatar}?t=${Date.now()}`}
                   alt="Avatar"
                   className="w-12 h-12 rounded-full object-cover border-2 border-primary"
                   onError={(e) => {

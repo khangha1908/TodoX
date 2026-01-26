@@ -3,45 +3,27 @@ import User from "../models/User.js";
 
 export const protect = async (req, res, next) => {
   try {
-    let token;
+    const authHeader = req.headers.authorization;
 
-    // Check for token in Authorization header
-    if (
-      req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer")
-    ) {
-      token = req.headers.authorization.split(" ")[1];
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Not authorized" });
     }
 
-    if (!token) {
-      return res.status(401).json({
-        message: "Không có token, quyền truy cập bị từ chối",
-      });
+    const token = authHeader.split(" ")[1];
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // 🔥 LOAD FULL USER FROM DB
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
     }
 
-    try {
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Get user from token
-      req.user = await User.findById(decoded.userId).select("-password");
-
-      if (!req.user) {
-        return res.status(401).json({
-          message: "Token không hợp lệ, người dùng không tìm thấy",
-        });
-      }
-
-      next();
-    } catch (error) {
-      return res.status(401).json({
-        message: "Token không hợp lệ",
-      });
-    }
+    req.user = user; // ⭐ FULL USER
+    next();
   } catch (error) {
-    console.error("Lỗi middleware auth:", error);
-    res.status(500).json({
-      message: "Lỗi máy chủ nội bộ",
-    });
+    console.error("Auth error:", error);
+    res.status(401).json({ message: "Token invalid" });
   }
 };

@@ -4,12 +4,9 @@ import categoryRouter from "./routes/categoryRouter.js";
 import authRouter from "./routes/authRouter.js";
 import templateRouter from "./routes/templateRouter.js";
 import { connectDB } from "./config/db.js";
-import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-
-dotenv.config();
 
 const PORT = process.env.PORT;
 const __filename = fileURLToPath(import.meta.url);

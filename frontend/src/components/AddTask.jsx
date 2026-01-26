@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import api from "@/lib/axios";
 import { scheduleTaskReminders } from "@/lib/notifications";
 import TemplateManager from "./TemplateManager";
+import CategorySelector from "./CategorySelector";
 
 const AddTask = ({ handleNewTaskAdded }) => {
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -25,6 +26,7 @@ const AddTask = ({ handleNewTaskAdded }) => {
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [attachments, setAttachments] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -34,6 +36,7 @@ const AddTask = ({ handleNewTaskAdded }) => {
   const fetchCategories = async () => {
     try {
       const res = await api.get("/categories");
+      console.log("Fetched categories:", res.data);
       setCategories(res.data);
     } catch (error) {
       console.error("Lỗi khi lấy categories:", error);
@@ -43,14 +46,23 @@ const AddTask = ({ handleNewTaskAdded }) => {
   const fetchTemplates = async () => {
     try {
       const res = await api.get("/templates");
-      setTemplates(res.data);
+      const data = res.data;
+      if (Array.isArray(data)) {
+        setTemplates(data);
+      } else if (data && typeof data === 'object' && Array.isArray(data.templates)) {
+        setTemplates(data.templates);
+      } else {
+        setTemplates([]);
+      }
     } catch (error) {
       console.error("Lỗi khi lấy templates:", error);
+      setTemplates([]);
     }
   };
 
   const addTask = async () => {
-    if (newTaskTitle.trim()) {
+    if (newTaskTitle.trim() && !isSubmitting) {
+      setIsSubmitting(true);
       try {
         // Create task first
         const taskResponse = await api.post("/tasks", {
@@ -71,7 +83,7 @@ const AddTask = ({ handleNewTaskAdded }) => {
               const formData = new FormData();
               formData.append('file', attachment.file);
 
-              await api.post(`/tasks/${newTask._id}/attachments`, formData, {
+              await api.post(`/tasks/${newTask.id}/attachments`, formData, {
                 headers: {
                   'Content-Type': 'multipart/form-data',
                 },
@@ -84,9 +96,11 @@ const AddTask = ({ handleNewTaskAdded }) => {
         }
 
         toast.success(`Thêm công việc ${newTaskTitle} thành công`);
-        handleNewTaskAdded();
 
-        // Reset form
+        // Call handleNewTaskAdded with newTask before resetting form
+        handleNewTaskAdded(newTask);
+
+        // Reset form after successful creation
         setNewTaskTitle("");
         setCategory("");
         setDueDate("");
@@ -96,11 +110,14 @@ const AddTask = ({ handleNewTaskAdded }) => {
         setSelectedTemplate(null);
         setAttachments([]);
         setIsExpanded(false);
+
       } catch (error) {
         console.error("Lỗi xảy ra khi thêm task:", error);
         toast.error("Lỗi xảy ra khi thêm task");
+      } finally {
+        setIsSubmitting(false);
       }
-    } else {
+    } else if (!newTaskTitle.trim()) {
       toast.error("Tiêu đề công việc không được để trống");
     }
   };
@@ -193,8 +210,8 @@ const AddTask = ({ handleNewTaskAdded }) => {
                 <SelectValue placeholder="Chọn template (tùy chọn)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Không dùng template</SelectItem>
-                {templates.map((template) => (
+                <SelectItem key="none" value="none">Không dùng template</SelectItem>
+                {Array.isArray(templates) && templates.map((template) => (
                   <SelectItem key={template._id} value={template._id}>
                     {template.name}
                   </SelectItem>
@@ -267,25 +284,12 @@ const AddTask = ({ handleNewTaskAdded }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Danh mục</label>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Chọn danh mục (tùy chọn)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Không có danh mục</SelectItem>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat._id} value={cat._id}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: cat.color }}
-                            />
-                            {cat.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <CategorySelector
+                    value={category}
+                    onValueChange={setCategory}
+                    onCategoryCreated={fetchCategories}
+                    placeholder="Chọn danh mục (tùy chọn)"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -378,6 +382,7 @@ const AddTask = ({ handleNewTaskAdded }) => {
         onTemplateSelect={handleTemplateSelect}
         templates={templates}
         setTemplates={setTemplates}
+        onTemplatesChange={fetchTemplates}
       />
     </div>
   );

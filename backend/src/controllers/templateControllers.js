@@ -1,96 +1,126 @@
 import TaskTemplate from "../models/TaskTemplate.js";
 import Category from "../models/Category.js";
+import { populateCategories } from "../utils/populate.js";
 
+/**
+ * GET /api/templates
+ */
 export const getTemplates = async (req, res) => {
   try {
-    const templates = await TaskTemplate.find({ user: req.user._id }).populate('category').sort({ createdAt: -1 });
-    res.status(200).json(templates);
+    const templates = await TaskTemplate.findByUser(req.user.id);
+    const populated = await populateCategories(templates, Category);
+    res.status(200).json(populated);
   } catch (error) {
     console.error("Lỗi khi getTemplates:", error);
-    res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
+    res.status(500).json({ message: "Lỗi máy chủ" });
   }
 };
 
+/**
+ * POST /api/templates
+ */
 export const createTemplate = async (req, res) => {
   try {
     const { name, title, category, dueDate, priority, description } = req.body;
 
-    // Handle category: convert empty string to null
-    const categoryId = category && category !== "" ? category : null;
+    const trimmedName = name?.trim();
+    const trimmedTitle = title?.trim();
 
-    // Validate category if provided
-    if (categoryId) {
-      const categoryExists = await Category.findOne({ _id: categoryId, user: req.user._id });
-      if (!categoryExists) {
-        return res.status(400).json({ message: "Category không tồn tại" });
-      }
+    if (!trimmedName || !trimmedTitle) {
+      return res.status(400).json({ message: "Name và title là bắt buộc" });
     }
 
-    const template = new TaskTemplate({
-      name,
-      title,
+    // category: "" → null
+    let categoryId = null;
+    if (category && category !== "") {
+      const cat = await Category.findById(category);
+      if (!cat || cat.userId !== req.user.id) {
+        return res.status(400).json({ message: "Category không hợp lệ" });
+      }
+      categoryId = category;
+    }
+
+    const newTemplate = await TaskTemplate.create({
+      name: trimmedName,
+      title: trimmedTitle,
       category: categoryId,
-      dueDate: dueDate ? new Date(dueDate) : null,
+      dueDate: dueDate ? new Date(dueDate).toISOString() : null,
       priority: priority || "medium",
       description: description?.trim() || "",
-      user: req.user._id
+      user: req.user.id,
     });
-    const newTemplate = await template.save();
-    const populatedTemplate = await TaskTemplate.findById(newTemplate._id).populate('category');
-    res.status(201).json(populatedTemplate);
+
+    const populated = await populateCategories([newTemplate], Category);
+    res.status(201).json(populated[0]);
   } catch (error) {
     console.error("Lỗi khi createTemplate:", error);
-    res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
+    res.status(500).json({ message: "Lỗi máy chủ" });
   }
 };
 
+/**
+ * PUT /api/templates/:id
+ */
 export const updateTemplate = async (req, res) => {
   try {
-    const { name, title, status, category, dueDate, priority, description } = req.body;
+    const { name, title, category, dueDate, priority, description } = req.body;
 
-    // Validate category if provided
     if (category) {
-      const categoryExists = await Category.findOne({ _id: category, user: req.user._id });
-      if (!categoryExists) {
-        return res.status(400).json({ message: "Category không tồn tại" });
+      const cat = await Category.findById(category);
+      if (!cat || cat.user !== req.user.id) {
+        return res.status(400).json({ message: "Category không hợp lệ" });
       }
     }
 
-    const updateData = {};
-    if (name !== undefined) updateData.name = name;
-    if (title !== undefined) updateData.title = title;
-    if (status !== undefined) updateData.status = status;
-    if (category !== undefined) updateData.category = category || null;
-    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
-    if (priority !== undefined) updateData.priority = priority || "medium";
-    if (description !== undefined) updateData.description = description?.trim() || "";
+    const updateData = {
+      ...(name !== undefined && { name: name.trim() }),
+      ...(title !== undefined && { title: title.trim() }),
+      ...(category !== undefined && { category: category || null }),
+      ...(dueDate !== undefined && {
+        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+      }),
+      ...(priority !== undefined && { priority }),
+      ...(description !== undefined && { description: description.trim() }),
+    };
 
-    const updatedTemplate = await TaskTemplate.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
-      updateData,
-      { new: true }
-    ).populate('category');
+    const updated = await TaskTemplate.updateById(
+      req.params.id,
+      req.user.id,
+      updateData
+    );
 
-    if (!updatedTemplate) {
+    if (!updated) {
       return res.status(404).json({ message: "Không tìm thấy template" });
     }
-    res.status(200).json(updatedTemplate);
+
+    const populated = await populateCategories([updated], Category);
+    res.status(200).json(populated[0]);
   } catch (error) {
     console.error("Lỗi khi updateTemplate:", error);
-    res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
+    res.status(500).json({ message: "Lỗi máy chủ" });
   }
 };
 
+/**
+ * DELETE /api/templates/:id
+ */
 export const deleteTemplate = async (req, res) => {
   try {
-    const deletedTemplate = await TaskTemplate.findOneAndDelete({ _id: req.params.id, user: req.user._id });
-    if (!deletedTemplate) {
+    console.log("Deleting template:", req.params.id, "for user:", req.user.id);
+    const success = await TaskTemplate.deleteById(
+      req.params.id,
+      req.user.id
+    );
+
+    if (!success) {
+      console.log("Delete failed: template not found or not owned by user");
       return res.status(404).json({ message: "Không tìm thấy template" });
     }
 
-    res.status(200).json(deletedTemplate);
+    console.log("Template deleted successfully");
+    res.status(200).json({ message: "Đã xóa template" });
   } catch (error) {
     console.error("Lỗi khi deleteTemplate:", error);
-    res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
+    res.status(500).json({ message: "Lỗi máy chủ" });
   }
 };

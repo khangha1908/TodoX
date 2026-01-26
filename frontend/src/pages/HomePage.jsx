@@ -92,10 +92,41 @@ const HomePage = () => {
     }
   }, [user, taskBuffer, loading]);
 
-  const handleTaskChanged = () => {
-    fetchTasks();
-    setSelectedTasks([]); // Clear selections after task change
+  // Fetch tasks when backend filters change
+  useEffect(() => {
+    if (user && !loading) {
+      fetchTasks();
+      setPage(1); // Reset to first page when backend filters change
+    }
+  }, [categoryFilter, dateQuery]);
+
+  // Reset page when client-side filter changes
+  useEffect(() => {
+    setPage(1); // Reset to first page when status filter changes
+  }, [filter]);
+
+  const handleTaskChanged = async (newTask) => {
+    if (newTask) {
+      // Add the new task immediately to the buffer
+      settaskBuffer(prev => [newTask, ...prev]);
+      // Update counts
+      if (newTask.status === "active") {
+        setactiveTaskCount(prev => prev + 1);
+      } else if (newTask.status === "complete") {
+        setcompleteTaskCount(prev => prev + 1);
+      }
+      // Reset category filter to show all
+      setCategoryFilter("all");
+      // Fetch in background to ensure consistency
+      fetchTasks();
+    } else {
+      // For update/delete/bulk actions, fetch all
+      await fetchTasks();
+    }
+    setSelectedTasks([]);
+    setPage(1);
   };
+
 
   const handleBulkDelete = async () => {
     if (selectedTasks.length === 0) return;
@@ -154,33 +185,44 @@ const HomePage = () => {
         statusMatch = true;
     }
 
-    return statusMatch;
-  });
+    // Filter by category
+    let categoryMatch = true;
+    if (categoryFilter && categoryFilter !== "all") {
+      if (categoryFilter === "none") {
+        categoryMatch = !task.category;
+      } else {
+        categoryMatch = task.category && task.category._id === categoryFilter;
+      }
+    }
+
+    return statusMatch && categoryMatch;
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const totalPages = Math.ceil(filteredTasks.length / visibleTaskLimit);
 
   const visibleTasks = filteredTasks.slice(
     (page - 1) * visibleTaskLimit,
     page * visibleTaskLimit
   );
 
-  if (visibleTasks.length === 0 && page > 1) {
-    handlePrev();
-  }
-
-  const totalPages = Math.ceil(filteredTasks.length / visibleTaskLimit);
+  // Reset page to 1 if current page exceeds total pages
+  useEffect(() => {
+    if (page > totalPages && totalPages > 0) {
+      setPage(1);
+    }
+  }, [page, totalPages]);
 
   const fetchTasks = async () => {
     try {
       const params = new URLSearchParams({ filter: dateQuery });
-      if (categoryFilter && categoryFilter !== "all") {
-        params.append('category', categoryFilter);
-      }
       // Add timestamp to prevent caching
       params.append('_t', Date.now());
 
       const res = await api.get(`/tasks?${params.toString()}`);
-      settaskBuffer(res.data.tasks);
-      setactiveTaskCount(res.data.activeCount);
-      setcompleteTaskCount(res.data.completeCount);
+      const tasks = Array.isArray(res.data.tasks) ? res.data.tasks : [];
+      settaskBuffer(tasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+      setactiveTaskCount(res.data.activeCount || 0);
+      setcompleteTaskCount(res.data.completeCount || 0);
     } catch (error) {
       console.error("Lỗi xảy ra khi truy xuất tasks:", error);
       toast.error("Lỗi xảy ra khi truy xuất tasks");
@@ -231,6 +273,7 @@ const HomePage = () => {
                 <CategorySelector
                   value={categoryFilter}
                   onValueChange={setCategoryFilter}
+                  onCategoryCreated={() => fetchTasks()}
                   placeholder="Chọn danh mục"
                 />
               </div>

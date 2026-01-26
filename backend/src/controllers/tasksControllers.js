@@ -6,6 +6,7 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import fs from 'fs';
 import { blobServiceClient, containerName } from '../config/azureStorage.js';
+import { populateCategories } from '../utils/populate.js';
 
 export const getAllTasks = async (req, res) => {
   const { filter = "all", category } = req.query;
@@ -44,10 +45,11 @@ export const getAllTasks = async (req, res) => {
   }
 
   try {
-    const tasks = await Task.find(query).populate('category').sort({ createdAt: -1 });
+    const tasks = await Task.find(query, { sort: { createdAt: -1 } });
+    const populatedTasks = await populateCategories(tasks, Category);
     const activeCount = await Task.countDocuments({ ...query, status: "active" });
     const completeCount = await Task.countDocuments({ ...query, status: "complete" });
-    res.status(200).json({ tasks, activeCount, completeCount });
+    res.status(200).json({ tasks: populatedTasks, activeCount, completeCount });
   } catch (error) {
     console.error("Lỗi khi getAllTasks:", error);
     res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
@@ -57,9 +59,10 @@ export const getAllTasks = async (req, res) => {
 // Automatic backup/archive tasks
 export const backupTasks = async (req, res) => {
   try {
-    const tasks = await Task.find({ user: req.user._id }).populate('category').sort({ createdAt: -1 });
+    const tasks = await Task.find({ user: req.user._id }, { sort: { createdAt: -1 } });
+    const populatedTasks = await populateCategories(tasks, Category);
 
-    if (tasks.length === 0) {
+    if (populatedTasks.length === 0) {
       return res.status(200).json({ message: "Không có nhiệm vụ nào để sao lưu" });
     }
 
@@ -68,7 +71,7 @@ export const backupTasks = async (req, res) => {
       backupDate: new Date(),
       totalTasks: tasks.length,
       tasks: tasks.map(task => ({
-        id: task._id,
+        id: task.id,
         title: task.title,
         status: task.status,
         category: task.category ? task.category.name : null,
@@ -144,8 +147,9 @@ export const getTasksForCalendar = async (req, res) => {
   }
 
   try {
-    const tasks = await Task.find(query).populate('category').sort({ dueDate: 1, createdAt: -1 });
-    res.status(200).json({ tasks });
+    const tasks = await Task.find(query, { sort: { dueDate: 1, createdAt: -1 } });
+    const populatedTasks = await populateCategories(tasks, Category);
+    res.status(200).json({ tasks: populatedTasks });
   } catch (error) {
     console.error("Lỗi khi getTasksForCalendar:", error);
     res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
@@ -156,16 +160,17 @@ export const createTask = async (req, res) => {
   try {
     const { title, category, dueDate, dueTime, priority, description } = req.body;
 
-    // Validate category if provided
-    if (category) {
-      const categoryExists = await Category.findOne({ _id: category, user: req.user._id });
-      if (!categoryExists) {
-        return res.status(400).json({ message: "Category không tồn tại" });
-      }
-    }
+    // // Validate category if provided
+    // if (category) {
+    //   const categoryExists = await Category.findById(category, req.user._id);
+    //   if (!categoryExists) {
+    //     return res.status(400).json({ message: "Category không tồn tại" });
+    //   }
+    // }
 
-    const task = new Task({
+    const newTask = await Task.create({
       title,
+      status: 'active',
       category,
       dueDate: dueDate ? new Date(dueDate) : null,
       dueTime,
@@ -173,9 +178,8 @@ export const createTask = async (req, res) => {
       description: description?.trim() || "",
       user: req.user._id
     });
-    const newTask = await task.save();
-    const populatedTask = await Task.findById(newTask._id).populate('category');
-    res.status(201).json(populatedTask);
+    const populatedTasks = await populateCategories([newTask], Category);
+    res.status(201).json(populatedTasks[0]);
   } catch (error) {
     console.error("Lỗi khi createTask:", error);
     res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
@@ -188,7 +192,7 @@ export const updateTask = async (req, res) => {
 
     // Validate category if provided
     if (category) {
-      const categoryExists = await Category.findOne({ _id: category, user: req.user._id });
+      const categoryExists = await Category.findById(category, req.user._id);
       if (!categoryExists) {
         return res.status(400).json({ message: "Category không tồn tại" });
       }
@@ -208,12 +212,14 @@ export const updateTask = async (req, res) => {
       { _id: req.params.id, user: req.user._id },
       updateData,
       { new: true }
-    ).populate('category');
+    );
 
     if (!updatedTask) {
       return res.status(404).json({ message: "Không tìm thấy nhiệm vụ" });
     }
-    res.status(200).json(updatedTask);
+
+    const populatedTask = await populateCategories([updatedTask], Category);
+    res.status(200).json(populatedTask[0]);
   } catch (error) {
     console.error("Lỗi khi updateTask:", error);
     res.status(500).json({ message: "Lỗi máy chủ, vui lòng thử lại sau" });
@@ -274,7 +280,8 @@ export const bulkUpdateTasks = async (req, res) => {
 // Export functions
 export const exportTasksToCSV = async (req, res) => {
   try {
-    const tasks = await Task.find({ user: req.user._id }).populate('category').sort({ createdAt: -1 });
+    const tasks = await Task.find({ user: req.user._id }, { sort: { createdAt: -1 } });
+    const populatedTasks = await populateCategories(tasks, Category);
 
     const csvWriter = createObjectCsvWriter({
       path: 'temp.csv',
@@ -296,13 +303,13 @@ export const exportTasksToCSV = async (req, res) => {
       title: task.title,
       status: task.status,
       category: task.category ? task.category.name : '',
-      dueDate: task.dueDate ? task.dueDate.toISOString().split('T')[0] : '',
+      dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
       dueTime: task.dueTime || '',
       priority: task.priority,
       description: task.description,
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
-      completedAt: task.completedAt ? task.completedAt.toISOString() : ''
+      createdAt: new Date(task.createdAt).toISOString(),
+      updatedAt: new Date(task.updatedAt).toISOString(),
+      completedAt: task.completedAt ? new Date(task.completedAt).toISOString() : ''
     }));
 
     await csvWriter.writeRecords(records);
@@ -324,19 +331,20 @@ export const exportTasksToCSV = async (req, res) => {
 
 export const exportTasksToJSON = async (req, res) => {
   try {
-    const tasks = await Task.find({ user: req.user._id }).populate('category').sort({ createdAt: -1 });
+    const tasks = await Task.find({ user: req.user._id }, { sort: { createdAt: -1 } });
+    const populatedTasks = await populateCategories(tasks, Category);
 
     const jsonData = tasks.map(task => ({
       title: task.title,
       status: task.status,
       category: task.category ? task.category.name : null,
-      dueDate: task.dueDate ? task.dueDate.toISOString().split('T')[0] : null,
+      dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : null,
       dueTime: task.dueTime || null,
       priority: task.priority,
       description: task.description,
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
-      completedAt: task.completedAt ? task.completedAt.toISOString() : null
+      createdAt: new Date(task.createdAt).toISOString(),
+      updatedAt: new Date(task.updatedAt).toISOString(),
+      completedAt: task.completedAt ? new Date(task.completedAt).toISOString() : null
     }));
 
     const jsonBuffer = Buffer.from(JSON.stringify(jsonData, null, 2));
@@ -372,19 +380,20 @@ export const exportTasksToJSON = async (req, res) => {
 
 export const exportTasksToExcel = async (req, res) => {
   try {
-    const tasks = await Task.find({ user: req.user._id }).populate('category').sort({ createdAt: -1 });
+    const tasks = await Task.find({ user: req.user._id }, { sort: { createdAt: -1 } });
+    const populatedTasks = await populateCategories(tasks, Category);
 
     const data = tasks.map(task => ({
       Title: task.title,
       Status: task.status,
       Category: task.category ? task.category.name : '',
-      'Due Date': task.dueDate ? task.dueDate.toISOString().split('T')[0] : '',
+      'Due Date': task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
       'Due Time': task.dueTime || '',
       Priority: task.priority,
       Description: task.description,
-      'Created At': task.createdAt.toISOString(),
-      'Updated At': task.updatedAt.toISOString(),
-      'Completed At': task.completedAt ? task.completedAt.toISOString() : ''
+      'Created At': new Date(task.createdAt).toISOString(),
+      'Updated At': new Date(task.updatedAt).toISOString(),
+      'Completed At': task.completedAt ? new Date(task.completedAt).toISOString() : ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -414,7 +423,12 @@ export const importTasks = async (req, res) => {
 
     if (mimetype === 'text/csv' || mimetype === 'application/vnd.ms-excel') {
       // Parse CSV
-      const stream = Readable.from(buffer.toString());
+      let csvString = buffer.toString('utf8');
+      // Remove BOM if present
+      if (csvString.charCodeAt(0) === 0xFEFF) {
+        csvString = csvString.slice(1);
+      }
+      const stream = Readable.from(csvString);
       const results = [];
       stream.pipe(csv())
         .on('data', (data) => results.push(data))
@@ -488,7 +502,7 @@ export const importTasks = async (req, res) => {
           }
         }
 
-        const task = new Task({
+        const savedTask = await Task.create({
           title: taskData.title || taskData.Title || '',
           status: taskData.status || taskData.Status || 'active',
           category: categoryId,
@@ -498,10 +512,8 @@ export const importTasks = async (req, res) => {
           description: taskData.description || taskData.Description || '',
           user: req.user._id
         });
-
-        const savedTask = await task.save();
-        const populatedTask = await Task.findById(savedTask._id).populate('category');
-        importedTasks.push(populatedTask);
+        const populatedTask = await populateCategories([savedTask], Category);
+        importedTasks.push(populatedTask[0]);
       } catch (error) {
         errors.push({ data: taskData, error: error.message });
       }

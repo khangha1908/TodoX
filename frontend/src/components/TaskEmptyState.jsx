@@ -18,7 +18,7 @@ const TaskEmptyState = ({ filter }) => {
             {filter === "all"
               ? "Tạo công việc mới và bắt đầu hoàn thành chúng"
               : `Chuyển sang tab "Tất cả" để xem các công việc ${
-                  filter === "active" ? "Đã hòn thành" : "Đang làm"
+                  filter === "active" ? "Đã hoàn thành" : "Đang làm"
                 }`}
           </p>
         </div>

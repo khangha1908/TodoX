@@ -191,7 +191,7 @@ const HomePage = () => {
       if (categoryFilter === "none") {
         categoryMatch = !task.category;
       } else {
-        categoryMatch = task.category && task.category._id === categoryFilter;
+        categoryMatch = task.category && task.category.id === categoryFilter;
       }
     }
 

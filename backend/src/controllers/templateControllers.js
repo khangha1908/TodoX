@@ -33,8 +33,8 @@ export const createTemplate = async (req, res) => {
     // category: "" → null
     let categoryId = null;
     if (category && category !== "") {
-      const cat = await Category.findById(category);
-      if (!cat || cat.userId !== req.user.id) {
+      const cat = await Category.findById(category, req.user.id);
+      if (!cat) {
         return res.status(400).json({ message: "Category không hợp lệ" });
       }
       categoryId = category;
@@ -65,9 +65,9 @@ export const updateTemplate = async (req, res) => {
   try {
     const { name, title, category, dueDate, priority, description } = req.body;
 
-    if (category) {
-      const cat = await Category.findById(category);
-      if (!cat || cat.user !== req.user.id) {
+    if (category && category !== "") {
+      const cat = await Category.findById(category, req.user.id);
+      if (!cat) {
         return res.status(400).json({ message: "Category không hợp lệ" });
       }
     }

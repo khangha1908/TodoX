@@ -6,6 +6,7 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import fs from 'fs';
 import { blobServiceClient, containerName } from '../config/azureStorage.js';
+import { BlobSASPermissions } from '@azure/storage-blob';
 import { populateCategories } from '../utils/populate.js';
 
 export const getAllTasks = async (req, res) => {
@@ -32,7 +33,7 @@ export const getAllTasks = async (req, res) => {
     }
   }
 
-  const query = { user: req.user._id };
+  const query = { user: req.user.id };
   if (startDate) {
     query.createdAt = { $gte: startDate };
   }
@@ -59,7 +60,7 @@ export const getAllTasks = async (req, res) => {
 // Automatic backup/archive tasks
 export const backupTasks = async (req, res) => {
   try {
-    const tasks = await Task.find({ user: req.user._id }, { sort: { createdAt: -1 } });
+    const tasks = await Task.find({ user: req.user.id }, { sort: { createdAt: -1 } });
     const populatedTasks = await populateCategories(tasks, Category);
 
     if (populatedTasks.length === 0) {
@@ -67,7 +68,7 @@ export const backupTasks = async (req, res) => {
     }
 
     const backupData = {
-      userId: req.user._id,
+      userId: req.user.id,
       backupDate: new Date(),
       totalTasks: tasks.length,
       tasks: tasks.map(task => ({
@@ -93,14 +94,14 @@ export const backupTasks = async (req, res) => {
       const containerClient = blobServiceClient.getContainerClient(containerName);
       await containerClient.createIfNotExists({ access: 'blob' });
 
-      const blobName = `backups/${req.user._id}/tasks_backup_${Date.now()}.json`;
+      const blobName = `backups/${req.user.id}/tasks_backup_${Date.now()}.json`;
       const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
       await blockBlobClient.upload(jsonBuffer, jsonBuffer.length);
 
       // Generate SAS token for download
       const sasToken = await blockBlobClient.generateSasUrl({
-        permissions: { read: true },
+        permissions: BlobSASPermissions.parse("r"),
         expiresOn: new Date(new Date().valueOf() + 30 * 24 * 60 * 60 * 1000), // 30 days
       });
 
@@ -125,7 +126,7 @@ export const backupTasks = async (req, res) => {
 export const getTasksForCalendar = async (req, res) => {
   const { startDate, endDate, category } = req.query;
 
-  const query = { user: req.user._id };
+  const query = { user: req.user.id };
 
   if (startDate && endDate) {
     query.dueDate = {
@@ -176,7 +177,7 @@ export const createTask = async (req, res) => {
       dueTime,
       priority: priority || "medium",
       description: description?.trim() || "",
-      user: req.user._id
+      user: req.user.id
     });
     const populatedTasks = await populateCategories([newTask], Category);
     res.status(201).json(populatedTasks[0]);
@@ -192,7 +193,7 @@ export const updateTask = async (req, res) => {
 
     // Validate category if provided
     if (category) {
-      const categoryExists = await Category.findById(category, req.user._id);
+      const categoryExists = await Category.findById(category, req.user.id);
       if (!categoryExists) {
         return res.status(400).json({ message: "Category không tồn tại" });
       }
@@ -209,7 +210,7 @@ export const updateTask = async (req, res) => {
     if (description !== undefined) updateData.description = description?.trim() || "";
 
     const updatedTask = await Task.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: req.user.id },
       updateData,
       { new: true }
     );
@@ -228,7 +229,7 @@ export const updateTask = async (req, res) => {
 
 export const deleteTask = async (req, res) => {
   try {
-    const deletedTask = await Task.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    const deletedTask = await Task.findOneAndDelete({ _id: req.params.id, user: req.user.id });
     if (!deletedTask) {
       return res.status(404).json({ message: "Không tìm thấy nhiệm vụ" });
     }
@@ -280,7 +281,7 @@ export const bulkUpdateTasks = async (req, res) => {
 // Export functions
 export const exportTasksToCSV = async (req, res) => {
   try {
-    const tasks = await Task.find({ user: req.user._id }, { sort: { createdAt: -1 } });
+    const tasks = await Task.find({ user: req.user.id }, { sort: { createdAt: -1 } });
     const populatedTasks = await populateCategories(tasks, Category);
 
     const csvWriter = createObjectCsvWriter({
@@ -361,7 +362,7 @@ export const exportTasksToJSON = async (req, res) => {
 
       // Generate SAS token for download
       const sasToken = await blockBlobClient.generateSasUrl({
-        permissions: { read: true },
+        permissions: BlobSASPermissions.parse("r"),
         expiresOn: new Date(new Date().valueOf() + 3600000), // 1 hour
       });
 

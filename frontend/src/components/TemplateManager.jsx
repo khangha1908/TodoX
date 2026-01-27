@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, Search, Grid3X3, List } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 import TemplateCard from "./TemplateCard";
@@ -19,6 +19,8 @@ const TemplateManager = ({ onTemplateSelect, templates, setTemplates, onTemplate
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState("grid"); // "grid" or "list"
 
   const [formData, setFormData] = useState({
     name: "",
@@ -198,6 +200,15 @@ const TemplateManager = ({ onTemplateSelect, templates, setTemplates, onTemplate
     resetForm();
   };
 
+  // Filter templates based on search query
+  const filteredTemplates = Array.isArray(templates)
+    ? templates.filter(template =>
+        template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        template.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (template.description && template.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : [];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -267,7 +278,6 @@ const TemplateManager = ({ onTemplateSelect, templates, setTemplates, onTemplate
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
                     </option>
-
                   ))}
                 </select>
               </div>

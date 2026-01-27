@@ -1,5 +1,7 @@
 import { webcrypto } from "crypto";
-globalThis.crypto = webcrypto;
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
+}
 import { CosmosClient } from '@azure/cosmos';
 let client;
 let database;

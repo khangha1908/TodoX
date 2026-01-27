@@ -1,7 +1,9 @@
+import { webcrypto } from "crypto";
+globalThis.crypto = webcrypto;
 import { CosmosClient } from '@azure/cosmos';
-import crypto from 'crypto';
 let client;
 let database;
+
 
 export const connectDB = async () => {
   try {

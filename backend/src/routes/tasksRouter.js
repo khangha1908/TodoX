@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { getAllTasks, createTask, updateTask, deleteTask, bulkDeleteTasks, bulkUpdateTasks, getTasksForCalendar, exportTasksToCSV, exportTasksToJSON, exportTasksToExcel, importTasks, uploadAttachment, deleteAttachment } from '../controllers/tasksControllers.js';
+import { getAllTasks, createTask, updateTask, deleteTask, bulkDeleteTasks, bulkUpdateTasks, getTasksForCalendar, exportTasksToCSV, exportTasksToJSON, exportTasksToExcel, importTasks, uploadAttachment, deleteAttachment, backupTasks } from '../controllers/tasksControllers.js';
 import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
@@ -45,6 +45,7 @@ router.get("/", protect, getAllTasks);
 router.get("/calendar", protect, getTasksForCalendar);
 
 router.post("/", protect, createTask);
+router.post("/backup", protect, backupTasks);
 
 router.put("/:id", protect, updateTask);
 

@@ -1,10 +1,18 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { FileText, Edit, Trash2, Play } from "lucide-react";
+import { FileText, Edit, Trash2, Play, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
-const TemplateCard = ({ template, onSelect, onEdit, onDelete }) => {
+const TemplateCard = ({ template, onSelect, onEdit, onDelete, isDeleting }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
   const getPriorityColor = (priority) => {
     switch (priority) {
       case "high":
@@ -25,48 +33,79 @@ const TemplateCard = ({ template, onSelect, onEdit, onDelete }) => {
   };
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow">
+    <Card
+      className="p-4 hover:shadow-lg transition-all duration-200 border-2 hover:border-primary/20 cursor-pointer group"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={onSelect}
+    >
       <div className="space-y-3">
+        {/* Header with title and actions */}
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <FileText className="size-4 text-primary" />
-            <h3 className="font-medium text-foreground truncate">{template.name}</h3>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <FileText className="size-4 text-primary flex-shrink-0" />
+            <h3 className="font-semibold text-foreground truncate text-sm">
+              {template.name}
+            </h3>
           </div>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onEdit}
-              className="h-8 w-8 p-0"
-            >
-              <Edit className="size-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onDelete}
-              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-            >
-              <Trash2 className="size-3" />
-            </Button>
+
+          {/* Action menu - only visible on hover */}
+          <div className={`transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 hover:bg-muted"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                  className="cursor-pointer"
+                >
+                  <Edit className="size-4 mr-2" />
+                  Chỉnh sửa
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="size-4 mr-2" />
+                  {isDeleting ? "Đang xóa..." : "Xóa"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
+        {/* Content */}
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground line-clamp-2">
+          <p className="text-sm font-medium text-foreground line-clamp-2">
             {template.title}
           </p>
 
           {template.description && (
-            <p className="text-xs text-muted-foreground line-clamp-1">
+            <p className="text-xs text-muted-foreground line-clamp-2">
               {template.description}
             </p>
           )}
         </div>
 
-        <div className="flex items-center justify-between">
+        {/* Footer with metadata and use button */}
+        <div className="flex items-center justify-between pt-2">
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className={getPriorityColor(template.priority)}>
+            <Badge variant="secondary" className={`text-xs px-2 py-0.5 ${getPriorityColor(template.priority)}`}>
               {template.priority === "high" ? "Cao" :
                template.priority === "medium" ? "Trung bình" : "Thấp"}
             </Badge>
@@ -78,13 +117,17 @@ const TemplateCard = ({ template, onSelect, onEdit, onDelete }) => {
             )}
           </div>
 
+          {/* Use button - more prominent */}
           <Button
             variant="gradient"
             size="sm"
-            onClick={onSelect}
-            className="h-8 px-3"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+            className="h-8 px-4 text-xs font-medium flex-shrink-0"
           >
-            <Play className="size-3 mr-1" />
+            <Play className="size-3 mr-1.5" />
             Sử dụng
           </Button>
         </div>
